@@ -3,6 +3,8 @@ SPDX-FileCopyrightText: 2018 yuzu Emulator Project - 2024 torzu Emulator Project
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
+[![Sued by Nintendo](https://img.shields.io/badge/Sued%20by-Nintendo-red?style=flat&logo=nintendo)](https://suedbynintendo.com)
+
 <h1 align="center">
   <br>
   <a href="https://codeberg.org/Software_arch/Torzu"><img src="https://cdn2.steamgriddb.com/icon/ad59ff806bbbc2f6e66fcdecd3bc70aa.png" alt="torzu" width="200"></a>
