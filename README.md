@@ -7,7 +7,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
   <br>
   <a href="https://codeberg.org/Software_arch/Torzu"><img src="https://cdn2.steamgriddb.com/icon/ad59ff806bbbc2f6e66fcdecd3bc70aa.png" alt="torzu" width="200"></a>
   <br>
-  <b>torzu</b>
+  <b>Torzu</b>
   <br>
 </h1>
 
