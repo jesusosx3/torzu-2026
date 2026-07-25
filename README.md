@@ -5,13 +5,13 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 <h1 align="center">
   <br>
-  <a href="http://vub63vv26q6v27xzv2dtcd25xumubshogm67yrpaz2rculqxs7jlfqad.onion/torzu-emu/torzu"><img src="https://cdn2.steamgriddb.com/icon/ad59ff806bbbc2f6e66fcdecd3bc70aa.png" alt="torzu" width="200"></a>
+  <a href="https://codeberg.org/Software_arch/Torzu"><img src="https://cdn2.steamgriddb.com/icon/ad59ff806bbbc2f6e66fcdecd3bc70aa.png" alt="torzu" width="200"></a>
   <br>
   <b>torzu</b>
   <br>
 </h1>
 
-<h4 align="center"><b>torzu</b> is a fork of yuzu, an open-source Nintendo Switch emulator.
+<h4 align="center"><b>Torzu</b> is a fork of yuzu, an open-source Nintendo Switch emulator.
 <br>
 It is written in C++ with portability in mind and runs on Linux, Windows and Android
 </h4>
