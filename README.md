@@ -11,7 +11,6 @@ SPDX-License-Identifier: GPL-2.0-or-later
   <br>
 </h1>
 
-[![Sued by Nintendo](https://img.shields.io/badge/Sued%20by-Nintendo-red?style=flat&logo=nintendo)](https://suedbynintendo.com)
 
 <h4 align="center"><b>Torzu</b> is a fork of yuzu, an open-source Nintendo Switch emulator.
 <br>
