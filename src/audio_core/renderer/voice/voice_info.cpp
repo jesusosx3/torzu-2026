@@ -94,8 +94,15 @@ void VoiceInfo::UpdateParameters(BehaviorInfo::ErrorInfo& error_info, const InPa
     }
 
     if (ShouldUpdateParameters(params)) {
-        data_unmapped = !pool_mapper.TryAttachBuffer(error_info, data_address,
-                                                     params.src_data_address, params.src_data_size);
+        if (params.src_data_address != 0) {
+            data_unmapped = !pool_mapper.TryAttachBuffer(error_info, data_address,
+                                                         params.src_data_address, params.src_data_size);
+        } else {
+            data_address.Setup(0, 0);
+            data_unmapped = false;
+            error_info.error_code = ResultSuccess;
+            error_info.address = CpuAddr(0);
+        }
     } else {
         error_info.error_code = ResultSuccess;
         error_info.address = CpuAddr(0);
@@ -175,66 +182,65 @@ void VoiceInfo::UpdateWaveBuffer(std::span<BehaviorInfo::ErrorInfo> error_info,
         return;
     }
 
+    if (wave_buffer_internal.address == 0 || wave_buffer_internal.size == 0) {
+        error_info[0].error_code = ResultSuccess;
+        error_info[0].address = 0;
+        if (error_info.size() > 1) {
+            error_info[1].error_code = ResultSuccess;
+            error_info[1].address = 0;
+        }
+        return;
+    }
+
+    // Handle sentinel / dummy buffers (e.g. start_offset = 0x7FFFFFFF)
+    if (wave_buffer_internal.start_offset == std::numeric_limits<s32>::max() ||
+        wave_buffer_internal.start_offset < 0) {
+        wave_buffer.start_offset = 0;
+        wave_buffer.end_offset = 0;
+        wave_buffer.loop = false;
+        wave_buffer.stream_ended = wave_buffer_internal.stream_ended;
+        wave_buffer.sent_to_DSP = false;
+        wave_buffer.loop_start_offset = 0;
+        wave_buffer.loop_end_offset = 0;
+        wave_buffer.loop_count = 0;
+
+        buffer_unmapped =
+            !pool_mapper.TryAttachBuffer(error_info[0], wave_buffer.buffer_address,
+                                         wave_buffer_internal.address, wave_buffer_internal.size);
+        return;
+    }
+
+    u64 required_size = wave_buffer_internal.size;
     switch (sample_format_) {
     case SampleFormat::PcmInt16: {
         constexpr auto byte_size{GetSampleFormatByteSize(SampleFormat::PcmInt16)};
-        if (wave_buffer_internal.start_offset * byte_size > wave_buffer_internal.size ||
-            wave_buffer_internal.end_offset * byte_size > wave_buffer_internal.size) {
-            LOG_ERROR(Service_Audio, "Invalid PCM16 start/end wavebuffer sizes!");
-            error_info[0].error_code = Service::Audio::ResultInvalidUpdateInfo;
-            error_info[0].address = wave_buffer_internal.address;
-            return;
-        }
+        required_size = std::max<u64>(required_size,
+                                      static_cast<u64>(std::max(0, wave_buffer_internal.end_offset)) * byte_size);
     } break;
 
     case SampleFormat::PcmFloat: {
         constexpr auto byte_size{GetSampleFormatByteSize(SampleFormat::PcmFloat)};
-        if (wave_buffer_internal.start_offset * byte_size > wave_buffer_internal.size ||
-            wave_buffer_internal.end_offset * byte_size > wave_buffer_internal.size) {
-            LOG_ERROR(Service_Audio, "Invalid PCMFloat start/end wavebuffer sizes!");
-            error_info[0].error_code = Service::Audio::ResultInvalidUpdateInfo;
-            error_info[0].address = wave_buffer_internal.address;
-            return;
-        }
+        required_size = std::max<u64>(required_size,
+                                      static_cast<u64>(std::max(0, wave_buffer_internal.end_offset)) * byte_size);
     } break;
 
     case SampleFormat::Adpcm: {
-        const auto start_frame{wave_buffer_internal.start_offset / 14};
-        auto start_extra{wave_buffer_internal.start_offset % 14 == 0
-                             ? 0
-                             : (wave_buffer_internal.start_offset % 14) / 2 + 1 +
-                                   ((wave_buffer_internal.start_offset % 14) % 2)};
-        const auto start{start_frame * 8 + start_extra};
-
-        const auto end_frame{wave_buffer_internal.end_offset / 14};
-        const auto end_extra{wave_buffer_internal.end_offset % 14 == 0
+        const auto safe_end{static_cast<u64>(std::max(0, wave_buffer_internal.end_offset))};
+        const auto end_frame{safe_end / 14};
+        const auto end_extra{(safe_end % 14 == 0)
                                  ? 0
-                                 : (wave_buffer_internal.end_offset % 14) / 2 + 1 +
-                                       ((wave_buffer_internal.end_offset % 14) % 2)};
-        const auto end{end_frame * 8 + end_extra};
-
-        if (start > static_cast<s64>(wave_buffer_internal.size) ||
-            end > static_cast<s64>(wave_buffer_internal.size)) {
-            LOG_ERROR(Service_Audio, "Invalid ADPCM start/end wavebuffer sizes!");
-            error_info[0].error_code = Service::Audio::ResultInvalidUpdateInfo;
-            error_info[0].address = wave_buffer_internal.address;
-            return;
-        }
+                                 : ((safe_end % 14) / 2 + 1 + ((safe_end % 14) % 2))};
+        const auto end_bytes{end_frame * 8 + end_extra};
+        required_size = std::max<u64>(required_size, end_bytes);
     } break;
 
     default:
         break;
     }
 
-    if (wave_buffer_internal.start_offset < 0 || wave_buffer_internal.end_offset < 0) {
-        LOG_ERROR(Service_Audio, "Invalid input start/end wavebuffer sizes!");
-        error_info[0].error_code = Service::Audio::ResultInvalidUpdateInfo;
-        error_info[0].address = wave_buffer_internal.address;
-        return;
-    }
-
-    wave_buffer.start_offset = wave_buffer_internal.start_offset;
-    wave_buffer.end_offset = wave_buffer_internal.end_offset;
+    wave_buffer.start_offset = static_cast<u32>(std::max(0, wave_buffer_internal.start_offset));
+    wave_buffer.end_offset = std::max<u32>(wave_buffer.start_offset,
+                                           static_cast<u32>(std::max(0, wave_buffer_internal.end_offset)));
     wave_buffer.loop = wave_buffer_internal.loop;
     wave_buffer.stream_ended = wave_buffer_internal.stream_ended;
     wave_buffer.sent_to_DSP = false;
@@ -244,20 +250,23 @@ void VoiceInfo::UpdateWaveBuffer(std::span<BehaviorInfo::ErrorInfo> error_info,
 
     buffer_unmapped =
         !pool_mapper.TryAttachBuffer(error_info[0], wave_buffer.buffer_address,
-                                     wave_buffer_internal.address, wave_buffer_internal.size);
+                                     wave_buffer_internal.address, required_size);
 
     if (sample_format_ == SampleFormat::Adpcm && behavior.IsAdpcmLoopContextBugFixed() &&
         wave_buffer_internal.context_address != 0) {
         buffer_unmapped = !pool_mapper.TryAttachBuffer(error_info[1], wave_buffer.context_address,
                                                        wave_buffer_internal.context_address,
                                                        wave_buffer_internal.context_size) ||
-                          data_unmapped;
+                          buffer_unmapped;
     } else {
         wave_buffer.context_address.Setup(0, 0);
     }
 }
 
 bool VoiceInfo::ShouldUpdateWaveBuffer(const WaveBufferInternal& wave_buffer_internal) const {
+    if (wave_buffer_internal.address == 0) {
+        return false;
+    }
     return !wave_buffer_internal.sent_to_DSP || buffer_unmapped;
 }
 

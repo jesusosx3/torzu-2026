@@ -120,9 +120,8 @@ static u32 DecodeAdpcm(Core::Memory::Memory& memory, std::span<s16> out_buffer,
         end += 1;
     }
 
-    if (req.buffer_size < end / 2) {
-        return 0;
-    }
+    // Allow decoding even if buffer_size header is smaller than end offset
+    // Games such as Metroid Prime 4 specify streaming chunks with small size fields.
 
     auto start_pos{req.start_offset + req.offset};
     auto samples_to_process{std::min(req.end_offset - start_pos, req.samples_to_read)};

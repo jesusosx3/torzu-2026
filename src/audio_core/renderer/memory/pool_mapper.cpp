@@ -92,6 +92,14 @@ bool PoolMapper::TryAttachBuffer(BehaviorInfo::ErrorInfo& error_info, AddressInf
     address_info.Setup(address, size);
 
     if (!FillDspAddr(address_info)) {
+        if (address != 0) {
+            // Memory pool was not found for this buffer, but address is valid guest memory.
+            // Force-map to direct CPU address so audio can still play.
+            address_info.SetForceMappedDspAddr(address);
+            error_info.error_code = ResultSuccess;
+            error_info.address = CpuAddr(0);
+            return true;
+        }
         error_info.error_code = Service::Audio::ResultInvalidAddressInfo;
         error_info.address = address;
         return force_map;
