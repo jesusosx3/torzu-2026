@@ -29,6 +29,8 @@ class GameListWorker;
 class GameListSearchField;
 class GameListDir;
 class GMainWindow;
+class SwitchHomeWidget;
+class QStackedWidget;
 enum class AmLaunchType;
 enum class StartGameType;
 
@@ -100,6 +102,12 @@ public:
 
     QStandardItemModel* GetModel() const;
 
+    void SetSwitchHomeMode(bool enabled);
+    bool IsSwitchHomeMode() const;
+    SwitchHomeWidget* GetSwitchHomeWidget() const {
+        return switch_home_widget;
+    }
+
     /// Disables events from the emulated controller
     void UnloadController();
 
@@ -128,6 +136,9 @@ signals:
     void ShowList(bool show);
     void PopulatingCompleted();
     void SaveConfig();
+    void ConfigureRequested();
+    void ExitRequested();
+    void ToggleFullscreenRequested();
 
 private slots:
     void OnItemExpanded(const QModelIndex& item);
@@ -166,6 +177,8 @@ private:
     GameListSearchField* search_field;
     GMainWindow* main_window = nullptr;
     QVBoxLayout* layout = nullptr;
+    QStackedWidget* stack_widget = nullptr;
+    SwitchHomeWidget* switch_home_widget = nullptr;
     QTreeView* tree_view = nullptr;
     QStandardItemModel* item_model = nullptr;
     std::unique_ptr<GameListWorker> current_worker;

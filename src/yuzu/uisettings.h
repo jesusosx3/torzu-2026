@@ -101,6 +101,7 @@ struct Values {
     Setting<bool> display_titlebar{linkage, true, "displayTitleBars", Category::Ui};
     Setting<bool> show_filter_bar{linkage, true, "showFilterBar", Category::Ui};
     Setting<bool> show_status_bar{linkage, true, "showStatusBar", Category::Ui};
+    Setting<bool> switch_home_mode{linkage, true, "switch_home_mode", Category::Ui};
 
     SwitchableSetting<ConfirmStop> confirm_before_stopping{linkage,
                                                            ConfirmStop::Ask_Always,

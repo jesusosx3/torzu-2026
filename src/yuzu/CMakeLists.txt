@@ -167,6 +167,8 @@ add_executable(yuzu
     game_list_p.h
     game_list_worker.cpp
     game_list_worker.h
+    switch_home.cpp
+    switch_home.h
     hotkeys.cpp
     hotkeys.h
     install_dialog.cpp

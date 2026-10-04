@@ -1480,6 +1480,9 @@ void GMainWindow::ConnectWidgetEvents() {
     connect(game_list, &GameList::PopulatingCompleted,
             [this] { multiplayer_state->UpdateGameList(game_list->GetModel()); });
     connect(game_list, &GameList::SaveConfig, this, &GMainWindow::OnSaveConfig);
+    connect(game_list, &GameList::ConfigureRequested, this, &GMainWindow::OnConfigure);
+    connect(game_list, &GameList::ExitRequested, this, &QMainWindow::close);
+    connect(game_list, &GameList::ToggleFullscreenRequested, this, &GMainWindow::ToggleFullscreen);
 
     connect(game_list, &GameList::OpenPerGameGeneralRequested, this,
             &GMainWindow::OnGameListOpenPerGameProperties);
@@ -1527,6 +1530,15 @@ void GMainWindow::ConnectMenuEvents() {
     connect_menu(ui->action_Configure_Current_Game, &GMainWindow::OnConfigurePerGame);
 
     // View
+    auto* action_switch_home = new QAction(tr("Switch &Home Menu Mode"), this);
+    action_switch_home->setCheckable(true);
+    action_switch_home->setChecked(UISettings::values.switch_home_mode.GetValue());
+    action_switch_home->setShortcut(QKeySequence(Qt::Key_F10));
+    ui->menu_View->addAction(action_switch_home);
+    connect(action_switch_home, &QAction::toggled, this, [this](bool checked) {
+        game_list->SetSwitchHomeMode(checked);
+    });
+
     connect_menu(ui->action_Fullscreen, &GMainWindow::ToggleFullscreen);
     connect_menu(ui->action_Single_Window_Mode, &GMainWindow::ToggleWindowMode);
     connect_menu(ui->action_Display_Dock_Widget_Headers, &GMainWindow::OnDisplayTitleBars);

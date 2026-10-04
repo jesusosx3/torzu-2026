@@ -24,8 +24,13 @@
 #include "yuzu/game_list_p.h"
 #include "yuzu/game_list_worker.h"
 #include "yuzu/main.h"
+#include "yuzu/switch_home.h"
 #include "yuzu/uisettings.h"
 #include "yuzu/util/controller_navigation.h"
+#include <QDesktopServices>
+#include <QStackedWidget>
+#include <QStandardPaths>
+#include <QUrl>
 
 GameListSearchField::KeyReleaseEater::KeyReleaseEater(GameList* gamelist_, QObject* parent)
     : QObject(parent), gamelist{gamelist_} {}
@@ -350,6 +355,48 @@ GameList::GameList(FileSys::VirtualFilesystem vfs_, FileSys::ManualContentProvid
     connect(tree_view, &QTreeView::customContextMenuRequested, this, &GameList::PopupContextMenu);
     connect(tree_view, &QTreeView::expanded, this, &GameList::OnItemExpanded);
     connect(tree_view, &QTreeView::collapsed, this, &GameList::OnItemExpanded);
+    switch_home_widget = new SwitchHomeWidget(this);
+
+    auto* classic_container = new QWidget(this);
+    auto* classic_layout = new QVBoxLayout(classic_container);
+    classic_layout->setContentsMargins(0, 0, 0, 0);
+    classic_layout->setSpacing(0);
+    classic_layout->addWidget(tree_view);
+    classic_layout->addWidget(search_field);
+
+    stack_widget = new QStackedWidget(this);
+    stack_widget->addWidget(switch_home_widget); // Index 0: Switch Home
+    stack_widget->addWidget(classic_container);   // Index 1: Classic Table
+
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(stack_widget);
+    setLayout(layout);
+
+    // SwitchHome connections
+    connect(switch_home_widget, &SwitchHomeWidget::BootGame, this, &GameList::BootGame);
+    connect(switch_home_widget, &SwitchHomeWidget::GameChosen, this, &GameList::GameChosen);
+    connect(switch_home_widget, &SwitchHomeWidget::OpenGameContextMenu, this,
+            [this](const QPoint& pos, u64 program_id, const std::string& path) {
+                QMenu context_menu;
+                AddGamePopup(context_menu, program_id, path);
+                context_menu.exec(pos);
+            });
+    connect(switch_home_widget, &SwitchHomeWidget::AddDirectoryRequested, this, &GameList::AddDirectory);
+    connect(switch_home_widget, &SwitchHomeWidget::SettingsRequested, this, &GameList::ConfigureRequested);
+    connect(switch_home_widget, &SwitchHomeWidget::ControllersRequested, this, &GameList::ConfigureRequested);
+    connect(switch_home_widget, &SwitchHomeWidget::ExitRequested, this, &GameList::ExitRequested);
+    connect(switch_home_widget, &SwitchHomeWidget::ToggleFullscreenRequested, this,
+            &GameList::ToggleFullscreenRequested);
+    connect(switch_home_widget, &SwitchHomeWidget::ToggleClassicViewRequested, this, [this] {
+        SetSwitchHomeMode(!IsSwitchHomeMode());
+    });
+    connect(switch_home_widget, &SwitchHomeWidget::AlbumRequested, this, [] {
+        const QString pictures_dir =
+            QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+        QDesktopServices::openUrl(QUrl::fromLocalFile(pictures_dir));
+    });
+
     connect(controller_navigation, &ControllerNavigation::TriggerKeyboardEvent,
             [this](Qt::Key key) {
                 // Avoid pressing buttons while playing
@@ -360,18 +407,12 @@ GameList::GameList(FileSys::VirtualFilesystem vfs_, FileSys::ManualContentProvid
                     return;
                 }
                 QKeyEvent* event = new QKeyEvent(QEvent::KeyPress, key, Qt::NoModifier);
-                QCoreApplication::postEvent(tree_view, event);
+                QWidget* target = IsSwitchHomeMode() ? static_cast<QWidget*>(switch_home_widget)
+                                                     : static_cast<QWidget*>(tree_view);
+                QCoreApplication::postEvent(target, event);
             });
 
-    // We must register all custom types with the Qt Automoc system so that we are able to use
-    // it with signals/slots. In this case, QList falls under the umbrells of custom types.
-    qRegisterMetaType<QList<QStandardItem*>>("QList<QStandardItem*>");
-
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->addWidget(tree_view);
-    layout->addWidget(search_field);
-    setLayout(layout);
+    SetSwitchHomeMode(UISettings::values.switch_home_mode.GetValue());
 }
 
 void GameList::UnloadController() {
@@ -504,6 +545,10 @@ void GameList::DonePopulating(const QStringList& watch_list) {
     }
     item_model->sort(tree_view->header()->sortIndicatorSection(),
                      tree_view->header()->sortIndicatorOrder());
+
+    if (switch_home_widget) {
+        switch_home_widget->PopulateFromModel(item_model);
+    }
 
     emit PopulatingCompleted();
 }
@@ -967,4 +1012,21 @@ void GameListPlaceholder::changeEvent(QEvent* event) {
 
 void GameListPlaceholder::RetranslateUI() {
     text->setText(tr("Double-click to add a new folder to the game list"));
+}
+
+void GameList::SetSwitchHomeMode(bool enabled) {
+    UISettings::values.switch_home_mode = enabled;
+    if (stack_widget) {
+        stack_widget->setCurrentIndex(enabled ? 0 : 1);
+    }
+    if (enabled && switch_home_widget) {
+        switch_home_widget->setFocus();
+    } else if (!enabled && tree_view) {
+        tree_view->setFocus();
+    }
+    emit SaveConfig();
+}
+
+bool GameList::IsSwitchHomeMode() const {
+    return stack_widget ? (stack_widget->currentIndex() == 0) : true;
 }
