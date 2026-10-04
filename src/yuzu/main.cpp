@@ -3258,7 +3258,7 @@ void GMainWindow::OnMenuInstallToNAND() {
                 }
                 return false;
             };
-            future = QtConcurrent::run([this, &file, progress_callback] {
+            future = QtConcurrent::run([this, file, progress_callback] {
                 return ContentManager::InstallNSP(*system, *vfs, file.toStdString(),
                                                   progress_callback);
             });

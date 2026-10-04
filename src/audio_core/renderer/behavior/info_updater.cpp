@@ -61,8 +61,10 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
     const PoolMapper pool_mapper(process_handle, memory_pools, memory_pool_count,
                                  behaviour.IsMemoryForceMappingEnabled());
     const auto voice_count{voice_context.GetCount()};
-    std::span<const VoiceInfo::InParameter> in_params{
-        reinterpret_cast<const VoiceInfo::InParameter*>(input), voice_count};
+    const size_t in_param_stride = voice_count > 0 ?
+        std::max<size_t>(sizeof(VoiceInfo::InParameter), in_header->voices_size / voice_count) :
+        sizeof(VoiceInfo::InParameter);
+
     std::span<VoiceInfo::OutStatus> out_params{reinterpret_cast<VoiceInfo::OutStatus*>(output),
                                                voice_count};
 
@@ -74,7 +76,7 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
     u32 new_voice_count{0};
 
     for (u32 i = 0; i < voice_count; i++) {
-        const auto& in_param{in_params[i]};
+        const auto& in_param{*reinterpret_cast<const VoiceInfo::InParameter*>(input + i * in_param_stride)};
         std::array<VoiceState*, MaxChannels> voice_states{};
 
         if (!in_param.in_use) {
@@ -118,13 +120,8 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
         new_voice_count += in_param.channel_count;
     }
 
-    auto consumed_input_size{voice_count * static_cast<u32>(sizeof(VoiceInfo::InParameter))};
+    auto consumed_input_size{in_header->voices_size};
     auto consumed_output_size{voice_count * static_cast<u32>(sizeof(VoiceInfo::OutStatus))};
-    if (consumed_input_size != in_header->voices_size) {
-        LOG_ERROR(Service_Audio, "Consumed an incorrect voices size, header size={}, consumed={}",
-                  in_header->voices_size, consumed_input_size);
-        return Service::Audio::ResultInvalidUpdateInfo;
-    }
 
     out_header->voices_size = consumed_output_size;
     out_header->size += consumed_output_size;
@@ -324,13 +321,21 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
         }
     }
 
-    if (consumed_input_size != in_header->mix_size) {
+    if (in_header->mix_size > 0 && consumed_input_size > in_header->mix_size) {
         LOG_ERROR(Service_Audio, "Consumed an incorrect mixes size, header size={}, consumed={}",
                   in_header->mix_size, consumed_input_size);
         return Service::Audio::ResultInvalidUpdateInfo;
     }
 
-    input += mix_count * sizeof(MixInfo::InParameter);
+    if (behaviour.IsMixInParameterDirtyOnlyUpdateSupported()) {
+        if (in_header->mix_size >= sizeof(MixInfo::InDirtyParameter)) {
+            input += (in_header->mix_size - sizeof(MixInfo::InDirtyParameter));
+        } else {
+            input += mix_count * sizeof(MixInfo::InParameter);
+        }
+    } else {
+        input += in_header->mix_size > 0 ? in_header->mix_size : (mix_count * sizeof(MixInfo::InParameter));
+    }
 
     return ResultSuccess;
 }
@@ -528,9 +533,9 @@ Result InfoUpdater::UpdateRendererInfo(const u64 elapsed_frames) {
 }
 
 Result InfoUpdater::CheckConsumedSize() {
-    if (CpuAddr(input) - CpuAddr(input_origin.data()) != expected_input_size) {
-        return Service::Audio::ResultInvalidUpdateInfo;
-    } else if (CpuAddr(output) - CpuAddr(output_origin.data()) != expected_output_size) {
+    if (CpuAddr(input) - CpuAddr(input_origin.data()) > expected_input_size) {
+        LOG_WARNING(Service_Audio, "Consumed audio input exceeded buffer: {} > {}",
+                    CpuAddr(input) - CpuAddr(input_origin.data()), expected_input_size);
         return Service::Audio::ResultInvalidUpdateInfo;
     }
     return ResultSuccess;

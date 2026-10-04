@@ -361,8 +361,14 @@ void CommandGenerator::GenerateAuxCommand(const s16 buffer_offset, EffectInfoBas
 void CommandGenerator::GenerateBiquadFilterEffectCommand(const s16 buffer_offset,
                                                          EffectInfoBase& effect_info,
                                                          const s32 node_id) {
+    if (!effect_info.GetParameter()) {
+        return;
+    }
     const auto& parameter{
         *reinterpret_cast<BiquadFilterInfo::ParameterVersion1*>(effect_info.GetParameter())};
+    if (parameter.channel_count <= 0 || parameter.channel_count > static_cast<s8>(MaxChannels)) {
+        return;
+    }
     if (effect_info.IsEnabled()) {
         bool needs_init{false};
 
@@ -381,7 +387,7 @@ void CommandGenerator::GenerateBiquadFilterEffectCommand(const s16 buffer_offset
         default:
             LOG_ERROR(Service_Audio, "Invalid biquad parameter state {}",
                       static_cast<u32>(parameter.state));
-            break;
+            return;
         }
 
         for (s8 channel = 0; channel < parameter.channel_count; channel++) {

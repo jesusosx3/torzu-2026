@@ -567,10 +567,10 @@ InstallResult RegisteredCache::InstallEntry(const NSP& nsp, bool overwrite_if_ex
                                             const VfsCopyFunction& copy) {
     const auto ncas = nsp.GetNCAsCollapsed();
     const auto meta_iter = std::find_if(ncas.begin(), ncas.end(), [](const auto& nca) {
-        return nca->GetType() == NCAContentType::Meta;
+        return nca != nullptr && nca->GetType() == NCAContentType::Meta;
     });
 
-    if (meta_iter == ncas.end()) {
+    if (meta_iter == ncas.end() || *meta_iter == nullptr) {
         LOG_ERROR(Loader, "The file you are attempting to install does not have a metadata NCA and "
                           "is therefore malformed. Check your encryption keys.");
         return InstallResult::ErrorMetaFailed;
@@ -579,23 +579,25 @@ InstallResult RegisteredCache::InstallEntry(const NSP& nsp, bool overwrite_if_ex
     const auto meta_id_raw = (*meta_iter)->GetName().substr(0, 32);
     const auto meta_id_data = Common::HexStringToArray<16>(meta_id_raw);
 
-    if ((*meta_iter)->GetSubdirectories().empty()) {
+    const auto subdirs = (*meta_iter)->GetSubdirectories();
+    if (subdirs.empty() || subdirs[0] == nullptr) {
         LOG_ERROR(Loader,
                   "The file you are attempting to install does not contain a section0 within the "
                   "metadata NCA and is therefore malformed. Verify that the file is valid.");
         return InstallResult::ErrorMetaFailed;
     }
 
-    const auto section0 = (*meta_iter)->GetSubdirectories()[0];
+    const auto section0 = subdirs[0];
 
-    if (section0->GetFiles().empty()) {
+    const auto sec_files = section0->GetFiles();
+    if (sec_files.empty() || sec_files[0] == nullptr) {
         LOG_ERROR(Loader,
                   "The file you are attempting to install does not contain a CNMT within the "
                   "metadata NCA and is therefore malformed. Verify that the file is valid.");
         return InstallResult::ErrorMetaFailed;
     }
 
-    const auto cnmt_file = section0->GetFiles()[0];
+    const auto cnmt_file = sec_files[0];
     const CNMT cnmt(cnmt_file);
 
     const auto title_id = cnmt.GetTitleID();
@@ -765,6 +767,10 @@ InstallResult RegisteredCache::RawInstallNCA(const NCA& nca, const VfsCopyFuncti
                                              bool overwrite_if_exists,
                                              std::optional<NcaID> override_id) {
     const auto in = nca.GetBaseFile();
+    if (in == nullptr) {
+        LOG_ERROR(Loader, "Cannot install NCA because base file is null.");
+        return InstallResult::ErrorCopyFailed;
+    }
     Core::Crypto::SHA256Hash hash{};
 
     // Calculate NcaID

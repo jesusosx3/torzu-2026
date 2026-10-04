@@ -151,6 +151,12 @@ private:
     };
     static_assert(sizeof(IoctlGetGpuTime) == 0x10, "IoctlGetGpuTime is incorrect size");
 
+    struct IoctlVsmsMapping {
+        u32_le vsms_id;
+        u32_le sm_id;
+    };
+    static_assert(sizeof(IoctlVsmsMapping) == 8, "IoctlVsmsMapping is incorrect size");
+
     NvResult GetCharacteristics1(IoctlCharacteristics& params);
     NvResult GetCharacteristics3(IoctlCharacteristics& params,
                                  std::span<IoctlGpuCharacteristics> gpu_characteristics);
@@ -165,6 +171,7 @@ private:
     NvResult ZBCQueryTable(IoctlZbcQueryTable& params);
     NvResult FlushL2(IoctlFlushL2& params);
     NvResult GetGpuTime(IoctlGetGpuTime& params);
+    NvResult VsmsMapping(IoctlVsmsMapping& params);
 
     EventInterface& events_interface;
 

@@ -101,7 +101,8 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
 }
 
 constexpr bool CheckValidRevision(u32 user_revision) {
-    return GetRevisionNum(user_revision) <= CurrentRevision;
+    const auto rev = GetRevisionNum(user_revision);
+    return rev >= 1 && rev <= 30;
 };
 
 } // namespace AudioCore
