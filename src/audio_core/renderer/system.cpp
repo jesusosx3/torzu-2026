@@ -118,6 +118,13 @@ Result System::Initialize(const AudioRendererParameterInternal& params,
 
     behavior.SetUserLibRevision(params.revision);
 
+    LOG_INFO(Service_Audio,
+             "AudioRenderer Init: rev=0x{:08X} (REV{}), voices={}, mixes={}, sub_mixes={}, "
+             "sinks={}, effects={}, sample_rate={}, sample_count={}",
+             params.revision, behavior.GetUserRevisionNum(), params.voices, params.mixes,
+             params.sub_mixes, params.sinks, params.effects, params.sample_rate,
+             params.sample_count);
+
     process_handle = process_handle_;
     applet_resource_user_id = applet_resource_user_id_;
     session_id = session_id_;

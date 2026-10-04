@@ -8,16 +8,27 @@
 
 namespace AudioCore::Renderer {
 
+namespace {
+VoiceState dummy_dsp_state{};
+VoiceChannelResource dummy_channel_resource{0};
+VoiceInfo dummy_voice_info{};
+VoiceState dummy_cpu_state{};
+} // namespace
+
 VoiceState& VoiceContext::GetDspSharedState(const u32 index) {
     if (index >= dsp_states.size()) {
-        LOG_ERROR(Service_Audio, "Invalid voice dsp state index {:04X}", index);
+        LOG_ERROR(Service_Audio, "Invalid voice dsp state index {:04X} (max {:04X})", index,
+                  dsp_states.size());
+        return dummy_dsp_state;
     }
     return dsp_states[index];
 }
 
 VoiceChannelResource& VoiceContext::GetChannelResource(const u32 index) {
     if (index >= channel_resources.size()) {
-        LOG_ERROR(Service_Audio, "Invalid voice channel resource index {:04X}", index);
+        LOG_ERROR(Service_Audio, "Invalid voice channel resource index {:04X} (max {:04X})", index,
+                  channel_resources.size());
+        return dummy_channel_resource;
     }
     return channel_resources[index];
 }
@@ -38,21 +49,27 @@ void VoiceContext::Initialize(std::span<VoiceInfo*> sorted_voice_infos_,
 
 VoiceInfo* VoiceContext::GetSortedInfo(const u32 index) {
     if (index >= sorted_voice_info.size()) {
-        LOG_ERROR(Service_Audio, "Invalid voice sorted info index {:04X}", index);
+        LOG_ERROR(Service_Audio, "Invalid voice sorted info index {:04X} (max {:04X})", index,
+                  sorted_voice_info.size());
+        return &dummy_voice_info;
     }
     return sorted_voice_info[index];
 }
 
 VoiceInfo& VoiceContext::GetInfo(const u32 index) {
     if (index >= voices.size()) {
-        LOG_ERROR(Service_Audio, "Invalid voice info index {:04X}", index);
+        LOG_ERROR(Service_Audio, "Invalid voice info index {:04X} (max {:04X})", index,
+                  voices.size());
+        return dummy_voice_info;
     }
     return voices[index];
 }
 
 VoiceState& VoiceContext::GetState(const u32 index) {
     if (index >= cpu_states.size()) {
-        LOG_ERROR(Service_Audio, "Invalid voice cpu state index {:04X}", index);
+        LOG_ERROR(Service_Audio, "Invalid voice cpu state index {:04X} (max {:04X})", index,
+                  cpu_states.size());
+        return dummy_cpu_state;
     }
     return cpu_states[index];
 }

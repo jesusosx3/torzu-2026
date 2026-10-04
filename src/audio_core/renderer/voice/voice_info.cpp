@@ -398,7 +398,13 @@ bool VoiceInfo::UpdateForCommandGeneration(VoiceContext& voice_context) {
     }
 
     for (s8 channel = 0; channel < channel_count; channel++) {
-        voice_states[channel] = &voice_context.GetDspSharedState(channel_resource_ids[channel]);
+        u32 res_id = channel_resource_ids[channel];
+        if (res_id >= voice_context.GetCount()) {
+            res_id = channel >= 0 && static_cast<u32>(channel) < voice_context.GetCount()
+                         ? static_cast<u32>(channel)
+                         : 0;
+        }
+        voice_states[channel] = &voice_context.GetDspSharedState(res_id);
     }
 
     return UpdateParametersForCommandGeneration(voice_states);
@@ -406,10 +412,16 @@ bool VoiceInfo::UpdateForCommandGeneration(VoiceContext& voice_context) {
 
 void VoiceInfo::ResetResources(VoiceContext& voice_context) const {
     for (s8 channel = 0; channel < channel_count; channel++) {
-        auto& state{voice_context.GetDspSharedState(channel_resource_ids[channel])};
+        u32 res_id = channel_resource_ids[channel];
+        if (res_id >= voice_context.GetCount()) {
+            res_id = channel >= 0 && static_cast<u32>(channel) < voice_context.GetCount()
+                         ? static_cast<u32>(channel)
+                         : 0;
+        }
+        auto& state{voice_context.GetDspSharedState(res_id)};
         state = {};
 
-        auto& channel_resource{voice_context.GetChannelResource(channel_resource_ids[channel])};
+        auto& channel_resource{voice_context.GetChannelResource(res_id)};
         channel_resource.prev_mix_volumes = channel_resource.mix_volumes;
     }
 }

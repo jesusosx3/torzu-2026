@@ -76,7 +76,45 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
     u32 new_voice_count{0};
 
     for (u32 i = 0; i < voice_count; i++) {
-        const auto& in_param{*reinterpret_cast<const VoiceInfo::InParameter*>(input + i * in_param_stride)};
+        VoiceInfo::InParameter in_param{};
+        if (in_param_stride >= sizeof(VoiceInfo::InParameterVersion2)) {
+            const auto& in_param_v2{*reinterpret_cast<const VoiceInfo::InParameterVersion2*>(input + i * in_param_stride)};
+            in_param.id = in_param_v2.id;
+            in_param.node_id = in_param_v2.node_id;
+            in_param.is_new = in_param_v2.is_new;
+            in_param.in_use = in_param_v2.in_use;
+            in_param.play_state = in_param_v2.play_state;
+            in_param.sample_format = in_param_v2.sample_format;
+            in_param.sample_rate = in_param_v2.sample_rate;
+            in_param.priority = in_param_v2.priority;
+            in_param.sort_order = in_param_v2.sort_order;
+            in_param.channel_count = in_param_v2.channel_count;
+            in_param.pitch = in_param_v2.pitch;
+            in_param.volume = in_param_v2.volume;
+            for (size_t b = 0; b < MaxBiquadFilters; b++) {
+                in_param.biquads[b].enabled = in_param_v2.biquads[b].enabled;
+                in_param.biquads[b].b[0] = static_cast<s16>(std::clamp(in_param_v2.biquads[b].b[0] * 16384.0f, -32768.0f, 32767.0f));
+                in_param.biquads[b].b[1] = static_cast<s16>(std::clamp(in_param_v2.biquads[b].b[1] * 16384.0f, -32768.0f, 32767.0f));
+                in_param.biquads[b].b[2] = static_cast<s16>(std::clamp(in_param_v2.biquads[b].b[2] * 16384.0f, -32768.0f, 32767.0f));
+                in_param.biquads[b].a[0] = static_cast<s16>(std::clamp(in_param_v2.biquads[b].a[0] * 16384.0f, -32768.0f, 32767.0f));
+                in_param.biquads[b].a[1] = static_cast<s16>(std::clamp(in_param_v2.biquads[b].a[1] * 16384.0f, -32768.0f, 32767.0f));
+            }
+            in_param.wave_buffer_count = in_param_v2.wave_buffer_count;
+            in_param.wave_buffer_index = in_param_v2.wave_buffer_index;
+            in_param.src_data_address = in_param_v2.src_data_address;
+            in_param.src_data_size = in_param_v2.src_data_size;
+            in_param.mix_id = in_param_v2.mix_id;
+            in_param.splitter_id = in_param_v2.splitter_id;
+            in_param.wave_buffer_internal = in_param_v2.wave_buffer_internal;
+            in_param.channel_resource_ids = in_param_v2.channel_resource_ids;
+            in_param.clear_voice_drop = in_param_v2.clear_voice_drop;
+            in_param.flush_buffer_count = in_param_v2.flush_buffer_count;
+            in_param.flags = in_param_v2.flags;
+            in_param.src_quality = in_param_v2.src_quality;
+        } else {
+            in_param = *reinterpret_cast<const VoiceInfo::InParameter*>(input + i * in_param_stride);
+        }
+
         std::array<VoiceState*, MaxChannels> voice_states{};
 
         if (!in_param.in_use) {
@@ -86,7 +124,11 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
         auto& voice_info{voice_context.GetInfo(in_param.id)};
 
         for (u32 channel = 0; channel < in_param.channel_count; channel++) {
-            voice_states[channel] = &voice_context.GetState(in_param.channel_resource_ids[channel]);
+            u32 res_id = in_param.channel_resource_ids[channel];
+            if (res_id >= voice_context.GetCount()) {
+                res_id = channel < voice_context.GetCount() ? channel : 0;
+            }
+            voice_states[channel] = &voice_context.GetState(res_id);
         }
 
         if (in_param.is_new) {

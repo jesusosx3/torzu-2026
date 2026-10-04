@@ -172,7 +172,12 @@ void CommandGenerator::GenerateVoiceCommand(VoiceInfo& voice_info) {
     }
 
     for (s8 channel = 0; channel < voice_info.channel_count; channel++) {
-        const auto resource_id{voice_info.channel_resource_ids[channel]};
+        auto resource_id{voice_info.channel_resource_ids[channel]};
+        if (resource_id >= voice_context.GetCount()) {
+            resource_id = channel >= 0 && static_cast<u32>(channel) < voice_context.GetCount()
+                             ? static_cast<u32>(channel)
+                             : 0;
+        }
         auto& voice_state{voice_context.GetDspSharedState(resource_id)};
         auto& channel_resource{voice_context.GetChannelResource(resource_id)};
 
