@@ -578,6 +578,9 @@ void CommandGenerator::GenerateEffectCommand(MixInfo& mix_info) {
             }
         } break;
 
+        case EffectInfoBase::Type::Invalid:
+            break;
+
         default:
             LOG_ERROR(Service_Audio, "Invalid effect type {}",
                       static_cast<u32>(effect_info.GetType()));

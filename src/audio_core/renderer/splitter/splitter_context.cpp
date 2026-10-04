@@ -120,17 +120,23 @@ u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_
         auto info_header{reinterpret_cast<const SplitterInfo::InParameter*>(input + offset)};
 
         if (info_header->magic != GetSplitterInfoMagic()) {
+            offset += sizeof(SplitterInfo::InParameter);
             continue;
         }
 
-        if (info_header->id < 0 || info_header->id > info_count) {
+        if (info_header->id < 0 || info_header->id >= info_count) {
+            offset += sizeof(SplitterInfo::InParameter);
             break;
         }
 
         auto& info{splitter_infos[info_header->id]};
         RecomposeDestination(info, info_header);
 
-        offset += info.Update(info_header);
+        u32 consumed = info.Update(info_header);
+        if (consumed == 0) {
+            consumed = sizeof(SplitterInfo::InParameter);
+        }
+        offset += consumed;
     }
 
     return offset;

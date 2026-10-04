@@ -1493,7 +1493,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     for (const ImageId overlap_id : join_ignore_textures) {
         Image& overlap = slot_images[overlap_id];
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
-            UNIMPLEMENTED();
+            overlap.flags &= ~ImageFlagBits::GpuModified;
         }
         if (True(overlap.flags & ImageFlagBits::Tracked)) {
             UntrackImage(overlap, overlap_id);

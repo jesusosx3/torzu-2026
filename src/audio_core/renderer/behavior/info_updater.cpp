@@ -297,11 +297,24 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
     if (behaviour.IsMixInParameterDirtyOnlyUpdateSupported()) {
         auto in_dirty_params{reinterpret_cast<const MixInfo::InDirtyParameter*>(input)};
         mix_count = in_dirty_params->count;
+        if (in_header->mix_size >= sizeof(MixInfo::InDirtyParameter)) {
+            const s32 max_mix_count = static_cast<s32>(
+                (in_header->mix_size - sizeof(MixInfo::InDirtyParameter)) / sizeof(MixInfo::InParameter));
+            if (mix_count > max_mix_count || mix_count < 0) {
+                mix_count = max_mix_count;
+            }
+        }
         input += sizeof(MixInfo::InDirtyParameter);
         consumed_input_size = static_cast<u32>(sizeof(MixInfo::InDirtyParameter) +
                                                mix_count * sizeof(MixInfo::InParameter));
     } else {
         mix_count = mix_context.GetCount();
+        if (in_header->mix_size > 0) {
+            const s32 max_mix_count = static_cast<s32>(in_header->mix_size / sizeof(MixInfo::InParameter));
+            if (mix_count > max_mix_count) {
+                mix_count = max_mix_count;
+            }
+        }
         consumed_input_size = static_cast<u32>(mix_count * sizeof(MixInfo::InParameter));
     }
 
