@@ -20,6 +20,9 @@ void DeviceSinkCommand::Dump([[maybe_unused]] const AudioRenderer::CommandListPr
 }
 
 void DeviceSinkCommand::Process(const AudioRenderer::CommandListProcessor& processor) {
+    if (input_count == 0) {
+        return;
+    }
     constexpr s32 min = std::numeric_limits<s16>::min();
     constexpr s32 max = std::numeric_limits<s16>::max();
 

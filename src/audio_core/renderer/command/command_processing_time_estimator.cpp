@@ -3023,6 +3023,8 @@ u32 CommandProcessingTimeEstimatorVersion5::Estimate(const AuxCommand& command) 
 
 u32 CommandProcessingTimeEstimatorVersion5::Estimate(const DeviceSinkCommand& command) const {
     switch (command.input_count) {
+    case 0:
+        return 0;
     case 2:
         switch (sample_count) {
         case 160:

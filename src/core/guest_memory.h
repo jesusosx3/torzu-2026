@@ -119,7 +119,7 @@ public:
                       Common::ScratchBuffer<T>* backup = nullptr) noexcept {
         m_addr = addr;
         m_size = size;
-        if (m_size == 0) {
+        if (m_size == 0 || m_size > 0x100000000ULL) {
             m_is_data_copy = true;
             return {};
         }
@@ -148,6 +148,9 @@ public:
     }
 
     void Write(std::span<T> write_data) noexcept {
+        if (this->size_bytes() == 0 || this->size_bytes() > 0x100000000ULL) {
+            return;
+        }
         if constexpr (FLAGS & GuestMemoryFlags::Cached) {
             m_memory->WriteBlockCached(m_addr, write_data.data(), this->size_bytes());
         } else if constexpr (FLAGS & GuestMemoryFlags::Safe) {

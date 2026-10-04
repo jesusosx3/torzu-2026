@@ -252,7 +252,9 @@ struct Memory::Impl {
         bool user_accessible = true;
 
         if (!AddressSpaceContains(page_table, addr, size)) [[unlikely]] {
-            on_unmapped(size, addr);
+            LOG_ERROR(HW_Memory,
+                      "Unmapped WalkBlock outside address space @ 0x{:016X} (size = {})",
+                      GetInteger(addr), size);
             return false;
         }
 
@@ -301,6 +303,15 @@ struct Memory::Impl {
     template <bool UNSAFE>
     bool ReadBlockImpl(const Common::ProcessAddress src_addr, void* dest_buffer,
                        const std::size_t size) {
+        if (size == 0) {
+            return true;
+        }
+        if (dest_buffer == nullptr || size > 0x100000000ULL) {
+            LOG_ERROR(HW_Memory,
+                      "Invalid ReadBlock @ 0x{:016X}, dest={}, size={}",
+                      GetInteger(src_addr), dest_buffer, size);
+            return false;
+        }
         return WalkBlock(
             src_addr, size,
             [src_addr, size, &dest_buffer](const std::size_t copy_amount,
@@ -308,7 +319,9 @@ struct Memory::Impl {
                 LOG_ERROR(HW_Memory,
                           "Unmapped ReadBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})",
                           GetInteger(current_vaddr), GetInteger(src_addr), size);
-                std::memset(dest_buffer, 0, copy_amount);
+                if (dest_buffer != nullptr && copy_amount <= YUZU_PAGESIZE) {
+                    std::memset(dest_buffer, 0, copy_amount);
+                }
             },
             [&](const std::size_t copy_amount, const u8* const src_ptr) {
                 std::memcpy(dest_buffer, src_ptr, copy_amount);
@@ -354,6 +367,15 @@ struct Memory::Impl {
     template <bool UNSAFE>
     bool WriteBlockImpl(const Common::ProcessAddress dest_addr, const void* src_buffer,
                         const std::size_t size) {
+        if (size == 0) {
+            return true;
+        }
+        if (src_buffer == nullptr || size > 0x100000000ULL) {
+            LOG_ERROR(HW_Memory,
+                      "Invalid WriteBlock @ 0x{:016X}, src={}, size={}",
+                      GetInteger(dest_addr), src_buffer, size);
+            return false;
+        }
         return WalkBlock(
             dest_addr, size,
             [dest_addr, size](const std::size_t copy_amount,
