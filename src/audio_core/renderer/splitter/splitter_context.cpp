@@ -6,11 +6,15 @@
 #include "audio_core/renderer/behavior/behavior_info.h"
 #include "audio_core/renderer/splitter/splitter_context.h"
 #include "common/alignment.h"
+#include "common/logging/log.h"
 
 namespace AudioCore::Renderer {
 
 SplitterDestinationData* SplitterContext::GetDestinationData(const s32 splitter_id,
                                                              const s32 destination_id) {
+    if (splitter_id < 0 || static_cast<size_t>(splitter_id) >= splitter_infos.size()) {
+        return nullptr;
+    }
     return splitter_infos[splitter_id].GetData(destination_id);
 }
 
@@ -133,22 +137,53 @@ u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_
 }
 
 u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
-    for (u32 i = 0; i < count; i++) {
-        auto data_header{
-            reinterpret_cast<const SplitterDestinationData::InParameter*>(input + offset)};
-
-        if (data_header->magic != GetSplitterSendDataMagic()) {
-            continue;
-        }
-
-        if (data_header->id < 0 || data_header->id > destinations_count) {
-            continue;
-        }
-
-        splitter_destinations[data_header->id].Update(*data_header);
-        offset += sizeof(SplitterDestinationData::InParameter);
+    if (count == 0) {
+        return offset;
     }
 
+    u32 stride = sizeof(SplitterDestinationData::InParameter); // default 0x70
+    if (count > 1) {
+        auto first_magic = *reinterpret_cast<const u32*>(input + offset);
+        if (first_magic == GetSplitterSendDataMagic()) {
+            for (u32 s = 0x40; s <= 0x200; s += 4) {
+                if (*reinterpret_cast<const u32*>(input + offset + s) == GetSplitterSendDataMagic()) {
+                    stride = s;
+                    break;
+                }
+            }
+        }
+    }
+
+    for (u32 i = 0; i < count; i++) {
+        const u8* elem = input + offset + i * stride;
+        u32 magic = *reinterpret_cast<const u32*>(elem);
+        if (magic != GetSplitterSendDataMagic()) {
+            continue;
+        }
+
+        s32 id = *reinterpret_cast<const s32*>(elem + 4);
+        if (id < 0 || id >= static_cast<s32>(destinations_count)) {
+            continue;
+        }
+
+        SplitterDestinationData::InParameter param{};
+        param.magic = magic;
+        param.id = id;
+        std::memcpy(param.mix_volumes.data(), elem + 8, sizeof(param.mix_volumes));
+        param.mix_id = *reinterpret_cast<const u32*>(elem + 0x68);
+
+        // In newer revisions (e.g. REV15 with 168-byte stride), destination in-use status
+        // is indicated either by a valid destination mix ID or by the active flag.
+        if (stride >= 168) {
+            param.in_use = (param.mix_id != UnusedMixId) || (elem[0x6C] != 0);
+        } else {
+            param.in_use = *reinterpret_cast<const bool*>(elem + 0x6C);
+        }
+
+        splitter_destinations[id].Update(param);
+    }
+
+    offset += count * stride;
     return offset;
 }
 
