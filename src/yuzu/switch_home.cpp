@@ -90,6 +90,11 @@ void SwitchGameCard::SetSelected(bool selected) {
     }
 }
 
+void SwitchGameCard::SetIcon(const QPixmap& icon) {
+    game_entry.icon = icon;
+    update();
+}
+
 void SwitchGameCard::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
@@ -105,11 +110,16 @@ void SwitchGameCard::paintEvent(QPaintEvent* event) {
     // Draw card background
     p.fillPath(path, QColor(35, 36, 38));
 
-    // Draw game icon
+    // Draw game icon in high resolution
     if (!game_entry.icon.isNull()) {
         p.save();
         p.setClipPath(path);
-        p.drawPixmap(card_rect, game_entry.icon);
+        const qreal dpr = devicePixelRatioF();
+        const QSize target_size(static_cast<int>(card_rect.width() * dpr),
+                                static_cast<int>(card_rect.height() * dpr));
+        const QPixmap scaled_icon = game_entry.icon.scaled(
+            target_size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+        p.drawPixmap(card_rect, scaled_icon);
         p.restore();
     } else {
         // Fallback placeholder
@@ -465,11 +475,56 @@ void SwitchHomeWidget::PopulateFromModel(QStandardItemModel* model) {
                 entry.play_time = time_item->data(Qt::DisplayRole).toString();
             }
 
-            const QVariant decor = child->data(Qt::DecorationRole);
-            if (decor.canConvert<QPixmap>()) {
-                entry.icon = decor.value<QPixmap>();
-            } else if (decor.canConvert<QIcon>()) {
-                entry.icon = decor.value<QIcon>().pixmap(256, 256);
+            // Check for external 1024x1024 cover in ~/.local/share/yuzu/covers/
+            const QString covers_dir = QDir::homePath() + QStringLiteral("/.local/share/yuzu/covers");
+            const QString pid_hex_upper =
+                QStringLiteral("%1").arg(entry.program_id, 16, 16, QLatin1Char('0')).toUpper();
+            const QString pid_hex_lower = pid_hex_upper.toLower();
+
+            const QStringList candidate_cover_paths = {
+                covers_dir + QStringLiteral("/") + pid_hex_upper + QStringLiteral(".jpg"),
+                covers_dir + QStringLiteral("/") + pid_hex_upper + QStringLiteral(".png"),
+                covers_dir + QStringLiteral("/") + pid_hex_lower + QStringLiteral(".jpg"),
+                covers_dir + QStringLiteral("/") + pid_hex_lower + QStringLiteral(".png"),
+                QFileInfo(entry.full_path).dir().filePath(pid_hex_upper + QStringLiteral(".jpg")),
+                QFileInfo(entry.full_path).dir().filePath(pid_hex_upper + QStringLiteral(".png")),
+                QFileInfo(entry.full_path).dir().filePath(
+                    QFileInfo(entry.full_path).completeBaseName() + QStringLiteral(".jpg")),
+                QFileInfo(entry.full_path).dir().filePath(
+                    QFileInfo(entry.full_path).completeBaseName() + QStringLiteral(".png")),
+            };
+
+            bool found_hires_cover = false;
+            for (const auto& path : candidate_cover_paths) {
+                if (QFile::exists(path)) {
+                    QPixmap hires_pix(path);
+                    if (!hires_pix.isNull()) {
+                        entry.icon = hires_pix;
+                        found_hires_cover = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found_hires_cover) {
+                // Check HiResIconRole from ROM (256x256 unscaled)
+                const QVariant hires = child->data(GameListItemPath::HiResIconRole);
+                if (hires.canConvert<QPixmap>()) {
+                    const QPixmap pix = hires.value<QPixmap>();
+                    if (!pix.isNull()) {
+                        entry.icon = pix;
+                        found_hires_cover = true;
+                    }
+                }
+            }
+
+            if (!found_hires_cover) {
+                const QVariant decor = child->data(Qt::DecorationRole);
+                if (decor.canConvert<QPixmap>()) {
+                    entry.icon = decor.value<QPixmap>();
+                } else if (decor.canConvert<QIcon>()) {
+                    entry.icon = decor.value<QIcon>().pixmap(256, 256);
+                }
             }
 
             entry.model_index = child->index();

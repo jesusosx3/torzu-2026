@@ -69,6 +69,7 @@ public:
     static constexpr int FullPathRole = SortRole + 2;
     static constexpr int ProgramIdRole = SortRole + 3;
     static constexpr int FileTypeRole = SortRole + 4;
+    static constexpr int HiResIconRole = SortRole + 5;
 
     GameListItemPath() = default;
     GameListItemPath(const QString& game_path, const std::vector<u8>& picture_data,
@@ -79,13 +80,14 @@ public:
         setData(qulonglong(program_id), ProgramIdRole);
         setData(game_type, FileTypeRole);
 
-        const u32 size = UISettings::values.game_icon_size.GetValue();
-
-        QPixmap picture;
-        if (!picture.loadFromData(picture_data.data(), static_cast<u32>(picture_data.size()))) {
-            picture = GetDefaultIcon(size);
+        QPixmap full_picture;
+        if (!full_picture.loadFromData(picture_data.data(), static_cast<u32>(picture_data.size()))) {
+            full_picture = GetDefaultIcon(256);
         }
-        picture = picture.scaled(size, size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        setData(full_picture, HiResIconRole);
+
+        const u32 size = UISettings::values.game_icon_size.GetValue();
+        QPixmap picture = full_picture.scaled(size, size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 
         setData(picture, Qt::DecorationRole);
     }

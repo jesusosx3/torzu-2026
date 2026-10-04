@@ -136,6 +136,7 @@ class SwitchGameCard : public QWidget {
 public:
     explicit SwitchGameCard(const SwitchGameEntry& entry, int index, QWidget* parent = nullptr);
     void SetSelected(bool selected);
+    void SetIcon(const QPixmap& icon);
     bool IsSelected() const {
         return is_selected;
     }
