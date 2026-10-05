@@ -291,34 +291,36 @@ Result InfoUpdater::UpdateEffectsVersion2(EffectContext& effect_context, const b
 
 Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_count,
                                 EffectContext& effect_context, SplitterContext& splitter_context) {
+    if (in_header->mix_size == 0) {
+        return ResultSuccess;
+    }
+
+    const u8* const initial_input = input;
     s32 mix_count{0};
-    u32 consumed_input_size{0};
 
     if (behaviour.IsMixInParameterDirtyOnlyUpdateSupported()) {
+        if (in_header->mix_size < sizeof(MixInfo::InDirtyParameter)) {
+            input = initial_input + in_header->mix_size;
+            return Service::Audio::ResultInvalidUpdateInfo;
+        }
         auto in_dirty_params{reinterpret_cast<const MixInfo::InDirtyParameter*>(input)};
         mix_count = in_dirty_params->count;
-        if (in_header->mix_size >= sizeof(MixInfo::InDirtyParameter)) {
-            const s32 max_mix_count = static_cast<s32>(
-                (in_header->mix_size - sizeof(MixInfo::InDirtyParameter)) / sizeof(MixInfo::InParameter));
-            if (mix_count > max_mix_count || mix_count < 0) {
-                mix_count = max_mix_count;
-            }
+        const s32 max_mix_count = static_cast<s32>(
+            (in_header->mix_size - sizeof(MixInfo::InDirtyParameter)) / sizeof(MixInfo::InParameter));
+        if (mix_count > max_mix_count || mix_count < 0) {
+            mix_count = max_mix_count;
         }
         input += sizeof(MixInfo::InDirtyParameter);
-        consumed_input_size = static_cast<u32>(sizeof(MixInfo::InDirtyParameter) +
-                                               mix_count * sizeof(MixInfo::InParameter));
     } else {
         mix_count = mix_context.GetCount();
-        if (in_header->mix_size > 0) {
-            const s32 max_mix_count = static_cast<s32>(in_header->mix_size / sizeof(MixInfo::InParameter));
-            if (mix_count > max_mix_count) {
-                mix_count = max_mix_count;
-            }
+        const s32 max_mix_count = static_cast<s32>(in_header->mix_size / sizeof(MixInfo::InParameter));
+        if (mix_count > max_mix_count) {
+            mix_count = max_mix_count;
         }
-        consumed_input_size = static_cast<u32>(mix_count * sizeof(MixInfo::InParameter));
     }
 
     if (mix_buffer_count == 0) {
+        input = initial_input + in_header->mix_size;
         return Service::Audio::ResultInvalidUpdateInfo;
     }
 
@@ -333,12 +335,14 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
             total_buffer_count += params.buffer_count;
             if (params.dest_mix_id > static_cast<s32>(mix_context.GetCount()) &&
                 params.dest_mix_id != UnusedMixId && params.mix_id != FinalMixId) {
+                input = initial_input + in_header->mix_size;
                 return Service::Audio::ResultInvalidUpdateInfo;
             }
         }
     }
 
     if (total_buffer_count > mix_buffer_count) {
+        input = initial_input + in_header->mix_size;
         return Service::Audio::ResultInvalidUpdateInfo;
     }
 
@@ -369,6 +373,7 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
     if (mix_dirty) {
         if (behaviour.IsSplitterSupported() && splitter_context.UsingSplitter()) {
             if (!mix_context.TSortInfo(splitter_context)) {
+                input = initial_input + in_header->mix_size;
                 return Service::Audio::ResultInvalidUpdateInfo;
             }
         } else {
@@ -376,27 +381,16 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
         }
     }
 
-    if (in_header->mix_size > 0 && consumed_input_size > in_header->mix_size) {
-        LOG_ERROR(Service_Audio, "Consumed an incorrect mixes size, header size={}, consumed={}",
-                  in_header->mix_size, consumed_input_size);
-        return Service::Audio::ResultInvalidUpdateInfo;
-    }
-
-    if (behaviour.IsMixInParameterDirtyOnlyUpdateSupported()) {
-        if (in_header->mix_size >= sizeof(MixInfo::InDirtyParameter)) {
-            input += (in_header->mix_size - sizeof(MixInfo::InDirtyParameter));
-        } else {
-            input += mix_count * sizeof(MixInfo::InParameter);
-        }
-    } else {
-        input += in_header->mix_size > 0 ? in_header->mix_size : (mix_count * sizeof(MixInfo::InParameter));
-    }
-
+    input = initial_input + in_header->mix_size;
     return ResultSuccess;
 }
 
 Result InfoUpdater::UpdateSinks(SinkContext& sink_context, std::span<MemoryPoolInfo> memory_pools,
                                 const u32 memory_pool_count) {
+    if (in_header->sinks_size == 0) {
+        return ResultSuccess;
+    }
+
     PoolMapper pool_mapper(process_handle, memory_pools, memory_pool_count,
                            behaviour.IsMemoryForceMappingEnabled());
 
@@ -412,21 +406,23 @@ Result InfoUpdater::UpdateSinks(SinkContext& sink_context, std::span<MemoryPoolI
         auto sink_info{sink_context.GetInfo(i)};
 
         if (sink_info->GetType() != params.type) {
-            sink_info->CleanUp();
             switch (params.type) {
             case SinkInfoBase::Type::Invalid:
+                sink_info->CleanUp();
                 std::construct_at<SinkInfoBase>(reinterpret_cast<SinkInfoBase*>(sink_info));
                 break;
             case SinkInfoBase::Type::DeviceSink:
+                sink_info->CleanUp();
                 std::construct_at<DeviceSinkInfo>(reinterpret_cast<DeviceSinkInfo*>(sink_info));
                 break;
             case SinkInfoBase::Type::CircularBufferSink:
+                sink_info->CleanUp();
                 std::construct_at<CircularBufferSinkInfo>(
                     reinterpret_cast<CircularBufferSinkInfo*>(sink_info));
                 break;
             default:
-                LOG_ERROR(Service_Audio, "Invalid sink type {}", static_cast<u32>(params.type));
-                break;
+                LOG_WARNING(Service_Audio, "Invalid sink type {}", static_cast<u32>(params.type));
+                continue;
             }
         }
 

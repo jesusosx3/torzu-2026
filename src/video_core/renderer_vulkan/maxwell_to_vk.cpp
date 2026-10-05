@@ -76,11 +76,12 @@ VkSamplerAddressMode WrapMode(const Device& device, Tegra::Texture::WrapMode wra
     case Tegra::Texture::WrapMode::MirrorOnceClampToEdge:
         return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
     case Tegra::Texture::WrapMode::MirrorOnceBorder:
-        UNIMPLEMENTED();
+        return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+    case Tegra::Texture::WrapMode::MirrorOnceClampOGL:
         return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
     default:
-        UNIMPLEMENTED_MSG("Unimplemented wrap mode={}", wrap_mode);
-        return {};
+        LOG_WARNING(Render_Vulkan, "Unimplemented wrap mode={}", static_cast<u32>(wrap_mode));
+        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     }
 }
 
